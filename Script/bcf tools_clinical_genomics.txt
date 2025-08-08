@@ -1,0 +1,80 @@
+
+## fastqc
+fastqc *.fastq -o fastqc_output/
+
+## fastp
+fastp -i in.R1.fq.gz -I in.R2.fq.gz -o out.R1.fq.gz -O out.R2.fq.gz --detect_adapter_for_pe
+
+## fastqc
+fastqc *.fastq -o fastqc_trim_output/
+
+
+##Download the reference genome for human from: ftp://ftp.ensembl.org/pub/grch37/current/fasta/homo_sapiens/dna/
+wget ftp://ftp.ensembl.org/pub/grch37/current/fasta/homo_sapiens/dna/Homo_sapiens.GRCh37.dna.primary_assembly.fa.gz
+
+## bwa index
+bwa index input_reference_genome.fasta
+
+
+## bwa mapping
+bwa mem input_reference_genome.fasta input_read1.fastq input_read_2.fastq > bwa_aln_alignments.sam 
+
+## sam/bam Processing
+samtools view -b output.sam > output.bam
+samtools sort output.bam -o sorted_output.bam
+samtools index sorted_output.bam
+samtools markdup sorted_output.bam markdup.bam
+
+## variant Calling (ploidy 1 when its bacteria, mitochondria; ploidy 2 for human)
+bcftools mpileup -f input_reference.fasta markdup.bam -Ou | bcftools call --ploidy 2 -mv -Ob -o raw_variants.bcf
+
+## Filtering
+bcftools view -i '%QUAL>=20' raw_variants.bcf -Ov -o filtered_variants.vcf
+
+
+## SnpEff installation
+
+##Install SnpEff: Download and install - SnpEff & SnpSift Documentation (pcingola.github.io)​
+
+wget https://snpeff.blob.core.windows.net/versions/snpEff_latest_core.zip​
+
+unzip snpEff_latest_core.zip ​
+
+Java –jar snpeff.jar databases​
+
+java -jar snpEff.jar download GRCh37.75
+
+## Variant Annotation
+java -Xmx8g -jar snpEff.jar GRCh37.75 Variant_call.vcf > Variant_call.ann.vcf
+
+
+
+
+
+## For installing Java 21+
+sudo apt update
+sudo apt install openjdk-21-jre
+
+##verify java version
+java -version
+
+
+## Exporting java 21
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+export PATH=$JAVA_HOME/bin:$PATH
+##then check
+java -version
+ 
+
+###If you want to make this permanent for your user:
+Add the two export lines to your ~/.bashrc or ~/.bash_profile file:
+
+nano ~/.bashrc
+
+
+##Paste:
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+export PATH=$JAVA_HOME/bin:$PATH
+
+##Then save (Ctrl+O, Enter, Ctrl+X) and run:
+source ~/.bashrc
