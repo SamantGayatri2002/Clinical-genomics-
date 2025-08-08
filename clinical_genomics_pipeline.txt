@@ -1,0 +1,165 @@
+Clinical Genomics Variant Calling Pipeline
+==========================================
+
+Overview
+--------
+This project demonstrates a variant calling workflow using publicly available sequencing data.
+The pipeline processes raw paired-end FASTQ files through quality control, trimming, alignment to a reference genome, and variant detection.
+
+It is suitable for both:
+- Practice projects → e.g., small datasets like a single chromosome
+- Main projects → e.g., targeted cancer studies such as Ewing Sarcoma data
+
+When and Why to Use This Pipeline
+---------------------------------
+You can use this workflow whenever you have:
+- Next-Generation Sequencing (NGS) short reads in FASTQ format
+- A reference genome (whole genome or specific chromosome/region)
+- The goal of identifying SNPs and INDELs in your sample
+
+Typical scenarios:
+- Clinical genomics research
+- Cancer variant profiling
+- Targeted sequencing analysis (e.g., chromosome-specific studies)
+- Bioinformatics training or academic teaching
+
+Software Requirements
+----------------------
+Install the following tools before running the pipeline:
+
+    sudo apt update
+    sudo apt install fastqc bwa samtools bcftools fastp
+
+- FastQC → read quality control
+- BWA → sequence alignment
+- SAMtools → SAM/BAM manipulation
+- BCFtools → variant calling
+- Fastp → trimming & adapter removal
+
+Inputs
+------
+1. Raw sequencing reads:
+   - raw_data/read1.fastq
+   - raw_data/read2.fastq
+2. Reference genome (FASTA):
+   - ref/chr21.fa
+
+Outputs
+-------
+- Quality reports (.html, .zip) before & after trimming
+- Trimmed reads → trimmed_data/
+- Indexed reference genome → ref/
+- Alignment files (SAM, BAM, sorted BAM, BAM index) → alignment/
+- Pileup file → vcf/read_sorted.mpileup
+- Variant file (VCF) → vcf/read_sorted.vcf
+- Variant counts (total & INDEL-specific)
+
+Pipeline Steps
+--------------
+1. Quality Check of Raw Reads
+
+    fastqc raw_data/read1.fastq raw_data/read2.fastq
+
+2. Index the Reference Genome
+
+    bwa index ref/chr21.fa
+    samtools faidx ref/chr21.fa
+    samtools dict ref/chr21.fa
+
+3. Trim Low-Quality Reads & Adapters
+
+    mkdir trimmed_data
+    fastp -i raw_data/read1.fastq -I raw_data/read2.fastq \
+          -o trimmed_data/read1_trimmed.fastq \
+          -O trimmed_data/read2_trimmed.fastq \
+          --detect_adapter_for_pe
+
+4. Quality Check After Trimming
+
+    fastqc trimmed_data/read1_trimmed.fastq trimmed_data/read2_trimmed.fastq
+
+5. Align Reads to Reference
+
+    mkdir alignment
+    bwa mem ref/chr21.fa \
+             trimmed_data/read1_trimmed.fastq \
+             trimmed_data/read2_trimmed.fastq > alignment/read.sam
+
+6. Convert, Sort & Index Alignments
+
+    samtools view -b alignment/read.sam > alignment/read.bam
+    samtools sort alignment/read.bam -o alignment/read_sorted.bam
+    samtools index alignment/read_sorted.bam
+
+7. Generate Pileup
+
+    mkdir vcf
+    bcftools mpileup -Ov -f ref/chr21.fa alignment/read_sorted.bam > vcf/read_sorted.mpileup
+
+8. Call Variants
+
+    bcftools call -c -v vcf/read_sorted.mpileup > vcf/read_sorted.vcf
+
+9. Count Variants
+    # Keep only high-quality variants (QUAL >= 20)
+    bcftools view -i '%QUAL>=20' vcf/read_sorted.vcf > vcf/read_sorted_filtered.vcf
+
+    # Count filtered variants
+    less vcf/read_sorted_filtered.vcf | grep -v '^##' | wc -l
+
+    # Count filtered INDELs only
+    less vcf/read_sorted_filtered.vcf | grep -v '^##' | grep 'INDEL' | wc -l
+
+Notes
+-----
+- Works on Ubuntu or other Linux distributions with the listed tools installed.
+- No Java or Docker is required.
+- For larger datasets, ensure sufficient CPU and RAM for alignment and variant calling steps.
+- Adjust reference genome and input file names as needed for your project.
+
+
+Understanding Whole Genome vs. Single Chromosome References
+===========================================================
+
+Whole Genome vs. Single Chromosome Reference
+--------------------------------------------
+When aligning sequencing reads, you can choose to use either:
+
+1. **Whole Genome Reference** (e.g., GRCh38 / hg38)
+   - **What it is:** The complete DNA sequence of an organism, including all 23 human chromosome pairs plus mitochondrial DNA.
+   - **Pros:**
+     - Comprehensive: Reads from anywhere in the genome can be aligned.
+     - Necessary for whole genome sequencing (WGS) or when the location of variants is unknown.
+     - Avoids misalignment for reads from other chromosomes.
+   - **Cons:**
+     - Computationally expensive (more CPU time, RAM, and disk space).
+     - Large index files and slower processing.
+
+2. **Single Chromosome Reference** (e.g., chr21)
+   - **What it is:** Only the sequence of one chromosome, such as human chromosome 21 (~48 million base pairs).
+   - **Pros:**
+     - Much faster alignment and variant calling due to smaller size.
+     - Lower storage requirements.
+     - Ideal for targeted sequencing, gene panels, or training exercises.
+   - **Cons:**
+     - Reads from other chromosomes will not align.
+     - Variants outside the chosen chromosome cannot be detected.
+     - Risk of missing relevant variants if the analysis is too restricted.
+
+When to Use Which
+-----------------
+- **Whole Genome Reference:** Use when working with WGS or when variant location is unknown.
+- **Single Chromosome Reference:** Use for targeted analysis or small-scale tests.
+
+Clarifying GRCh38 / hg38
+------------------------
+- **GRCh38** (Genome Reference Consortium human build 38) and **hg38** are the same — they are the 38th version of the human reference genome assembly, released in 2013.
+- The number 38 is a *version number*, **not** a chromosome number.
+- Humans have only 23 pairs of chromosomes (1–22, X, and Y).
+- GRCh38 contains sequences for all chromosomes, plus mitochondrial DNA and additional reference sequences.
+- The previous assembly, **GRCh37 / hg19**, is still used in some pipelines for compatibility with older datasets and tools.
+
+Summary
+-------
+- **GRCh38/hg38** = entire human genome (version 38), not a single chromosome.
+- Choice between whole genome and single chromosome reference depends on the project scope, computational resources, and target regions of interest.
