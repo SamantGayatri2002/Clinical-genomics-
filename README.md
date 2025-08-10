@@ -1,4 +1,4 @@
-# Clinical Genomics Project: Whole Exome Sequencing Analysis of Ewing Sarcoma Sample
+# Clinical Genomics Project: Whole Exome Sequence Analysis of Ewing Sarcoma Sample
 
 ## Overview
 This project focuses on the analysis of Whole Exome Sequencing (WES) data from a tumor tissue sample of a 20-year-old male patient diagnosed with Ewing Sarcoma. The goal is to identify and annotate genetic variants within the protein-coding regions (exome) of the human genome to understand mutational impacts and potential clinical relevance.
